@@ -77,7 +77,7 @@ class Render(object):
         ]
 
         self.zBuffer = [
-            [float('inf') for x in range(self.width)]
+            [-9999 for x in range(self.width)]
             for y in range(self.height)
         ]
 
@@ -301,10 +301,10 @@ class Render(object):
                 # --------------------------------------------------------------
 
                 if(self.zBuffer[x][y] < z):
-                    self.point(x,y)
                     self.zBuffer[x][y] = z
+                    self.point(x,y)
 
-                self.point(x,y)
+                # self.point(x,y)
 
 
     def vertexTriangle(self, v1, v2, v3):
