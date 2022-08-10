@@ -37,11 +37,12 @@ def glColor(r, g, b):
 def glVertex(x,y):
 	objetoRender.current_color = color(0,255,0)
 
-def glLine(x0, y0, x1, y1):
+def glLine(v1,v2):
+	objetoRender.line(v1,v2)
 
-	# CONVERTIR COORDENADAS EN RENDER
-
-	objetoRender.line(x0, y0, x1, y1)
+def glTriangle(A,B,C,col):
+	objetoRender.current_color = color(round(255*col[0]), round(255*col[1]), round(255*col[2]))
+	objetoRender.barycentricTriangle(A,B,C)
 
 def glPoint(x, y):
 	objetoRender.point(x,y)

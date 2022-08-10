@@ -4,6 +4,10 @@ from utilities import *
 # Importando libreria para manejo de colores
 from colors import *
 
+from vector import V3
+
+import random
+
 class Obj(object):
   def __init__(self, filename):
     with open(filename) as f:
@@ -58,7 +62,7 @@ class Render(object):
         self.current_color = WHITE 
 
 		# Estableciendo el color con el que se realizara cualquier clear() en caso de no ser cambiado
-        self.clear_color = WHITE 
+        self.clear_color = BLACK 
 
 		# Limpiando el framebuffer para llenarlo con el color del clear()
         self.clear()
@@ -69,6 +73,11 @@ class Render(object):
 		# Utilizando list comprehension se llenan todos los pixeles usando width y height
         self.framebuffer = [
             [self.clear_color for x in range(self.width)]
+            for y in range(self.height)
+        ]
+
+        self.zBuffer = [
+            [float('inf') for x in range(self.width)]
             for y in range(self.height)
         ]
 
@@ -114,7 +123,12 @@ class Render(object):
         except:
             pass
     
-    def line(self, x0, y0, x1, y1):
+    def line(self, v1,v2):
+
+        x0 = v1.x
+        y0 = v1.y
+        x1 = v2.x
+        y1 = v2.y
 
         coordenadas = []
 
@@ -141,7 +155,7 @@ class Render(object):
         threshold = dx
         y = y0
 
-        for x in range(x0, x1 + 1):
+        for x in range(round(x0), round(x1 + 1)):
             if steep:
                 self.point(y, x)
                 # print(y,x,'\n')
@@ -161,10 +175,15 @@ class Render(object):
         return coordenadas
     
     def transformarVertice(self, vertex, scale, translate):
-        return [
+        # return [
+        #     ((vertex[0] * scale[0]) + translate[0]),
+        #     ((vertex[1] * scale[1]) + translate[1])
+        # ]
+        return V3(
             ((vertex[0] * scale[0]) + translate[0]),
-            ((vertex[1] * scale[1]) + translate[1])
-        ]
+            ((vertex[1] * scale[1]) + translate[1]),
+            ((vertex[2] * scale[2]) + translate[2])
+        )
 
     def convertirCoordenadas(self, x,y):
 
@@ -186,12 +205,187 @@ class Render(object):
         self.line(round(v1[0]), round(v1[1]), round(v2[0]), round(v2[1]))
         self.line(round(v2[0]), round(v2[1]), round(v3[0]), round(v3[1]))
         self.line(round(v3[0]), round(v3[1]), round(v1[0]), round(v1[1]))
+    
+    def boundingBox(self, A, B, C):
+        coords = [(A.x,A.y), (B.x,B.y), (C.x,C.y)]
+
+        xmin = float('inf')
+        xmax = float('-inf')
+        ymin = float('inf')
+        ymax = float('-inf')
+
+        for (x,y) in coords:
+            if x < xmin:
+                xmin = x
+            if x > xmax:
+                xmax = x
+            if y < ymin:
+                ymin = y
+            if y > ymax:
+                ymax = y
+        
+        return V3(xmin,ymin), V3(xmax,ymax)
+
+    def crossProduct(self,v1,v2):
+        return (
+            (v1.y * v2.z) - (v1.z * v2.y),
+            (v1.z * v2.x) - (v1.x * v2.z),
+            (v1.x * v2.y) - (v1.y * v2.x)
+        )
+
+    def barycentricCoordinates(self,A,B,C,P):
+        cx, cy, cz = self.crossProduct(
+            V3(B.x - A.x, C.x - A.x, A.x - P.x),
+            V3(B.y - A.y, C.y - A.y, A.y - P.y)
+        )
+        u = cx/cz
+        v = cy/cz
+        w = 1 - (u + v)
+        return (w,v,u)
+
+    def productoPunto(self,v1,v2):
+        return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+
+    def barycentricTriangle(self, A, B, C,):
+
+        # Colores aleatorios para rellenar cada triangulo:
+
+        # self.current_color = color(round(255*random.random()), round(255*random.random()), round(255*random.random()))
+
+        # --------------------------------------------------------------
+
+
+        # Colores rojo, verde y azul para llenar dependiendo de que tan lejos de su vertice se encuentre:
+
+        Acolor = (255,0,0)
+        Bcolor = (0,255,0)
+        Ccolor = (0,0,255)
+
+        # --------------------------------------------------------------
+
+        # Obteniendo las normales para poder dibujar en 3D:
+
+        L = V3(0,0,-5)
+        N = (C-A) * (B-A)
+        I = self.productoPunto(L.normalize(),N.normalize())
+
+        # print(I)
+
+        if I < 0:
+            return
+            
+        
+        # Pintar en escala de grises:
+
+        self.current_color = color(round(255 * I), round(255 * I), round(255 * I))
+
+        Bminimo, Bmaximo = self.boundingBox(A, B, C)
+
+        for x in range(round(Bminimo.x), round(Bmaximo.x) + 1):
+            for y in range(round(Bminimo.y), round(Bmaximo.y) + 1):
+                w,v,u = self.barycentricCoordinates(A,B,C, V3(x,y))
+                if(w < 0 or v < 0 or u < 0):
+                    continue
+
+                z = A.z * w + B.z * v + C.z * u
+
+                # Colores rojo, verde y azul para llenar dependiendo de que tan lejos de su vertice se encuentre:
+
+                a = round(Acolor[0] * w) + round(Bcolor[0] * v) + round(Ccolor[0] * u)
+                b = round(Acolor[1] * w) + round(Bcolor[1] * v) + round(Ccolor[1] * u)
+                c = round(Acolor[2] * w) + round(Bcolor[2] * v) + round(Ccolor[2] * u)
+
+                # self.current_color = color(a,b,c)
+
+
+                # --------------------------------------------------------------
+
+                if(self.zBuffer[x][y] < z):
+                    self.point(x,y)
+                    self.zBuffer[x][y] = z
+
+                self.point(x,y)
+
+
+    def vertexTriangle(self, v1, v2, v3):
+        
+        self.current_color = color(round(255*random.random()), round(255*random.random()), round(255*random.random()))
+
+        self.line(v1,v2)
+        self.line(v2,v3)
+        self.line(v3,v1)
+
+        # Proceso para rellenar triangulo:
+
+        A = v1
+        B = v2
+        C = v3
+
+        if A.y > B.y:
+            A, B = B, A
+        if A.y > C.y:
+            A, C = C, A
+        if B.y > C.y:
+            B, C = C, B
+        
+        dx_ac = (C.x - A.x) 
+        dy_ac = (C.y - A.y) 
+
+        if dy_ac == 0:
+            return
+
+        mi_ac = dx_ac / dy_ac
+
+        dx_ab = (B.x - A.x)
+        dy_ab = (B.y - A.y)
+
+        if dy_ab != 0:
+            
+            mi_ab = dx_ab / dy_ab
+
+            for y in range(round(A.y), round(B.y + 1)):
+                xi = round(A.x - mi_ac * (A.y - y))
+                xf = round(A.x - mi_ab * (A.y - y))
+
+                if xi > xf:
+                    xi, xf = xf, xi
+
+                for x in range(xi, xf + 1):
+                    self.point(x, y)
+
+        dx_bc = (C.x - B.x)
+        dy_bc = (C.y - B.y)
+
+        if dy_bc != 0:
+
+            mi_bc = dx_bc / dy_bc
+
+            for y in range(round(B.y), round(C.y + 1)):
+                xi = round(A.x - mi_ac * (A.y - y))
+                xf = round(B.x - mi_bc * (B.y - y))
+
+                if xi > xf:
+                    xi, xf = xf, xi
+
+                for x in range(xi, xf + 1):
+                    self.point(x, y)
+
 
     def cube(self, v1, v2, v3, v4):
-        self.line(round(v1[0]), round(v1[1]), round(v2[0]), round(v2[1]))
-        self.line(round(v2[0]), round(v2[1]), round(v3[0]), round(v3[1]))
-        self.line(round(v3[0]), round(v3[1]), round(v4[0]), round(v4[1]))
-        self.line(round(v4[0]), round(v4[1]), round(v1[0]), round(v1[1]))
+        # self.line(round(v1[0]), round(v1[1]), round(v2[0]), round(v2[1]))
+        # self.line(round(v2[0]), round(v2[1]), round(v3[0]), round(v3[1]))
+        # self.line(round(v3[0]), round(v3[1]), round(v4[0]), round(v4[1]))
+        # self.line(round(v4[0]), round(v4[1]), round(v1[0]), round(v1[1]))
+
+        # self.line(round(v1.x), round(v1.y), round(v2.x), round(v2.y))
+        # self.line(round(v2.x), round(v2.y), round(v3.x), round(v3.y))
+        # self.line(round(v3.x), round(v3.y), round(v4.x), round(v4.y))
+        # self.line(round(v4.x), round(v4.y), round(v1.x), round(v1.y))
+
+        self.line(v1,v2)
+        self.line(v2,v3)
+        self.line(v3,v4)
+        self.line(v4,v1)
 
     def renderObject(self, name, scaleFactor, translateFactor):
         cube = Obj(name)
@@ -212,4 +406,4 @@ class Render(object):
                 v2 = self.transformarVertice(cube.vertices[face[1][0] - 1], scaleFactor, translateFactor)
                 v3 = self.transformarVertice(cube.vertices[face[2][0] - 1], scaleFactor, translateFactor)
 
-                self.triangle(v1, v2, v3)
+                self.barycentricTriangle(v1, v2, v3)
